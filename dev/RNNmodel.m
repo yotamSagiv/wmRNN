@@ -76,14 +76,14 @@ classdef RNNmodel < handle
             
             for i = 1:num_iterations
                 % randomly permute the sets before training
-                perm_indices = randperm(num_examples, 1);
-                input_set = input_set(perm_indices);
-                label_set = label_set(perm_indices);
+                perm_indices = randperm(num_examples);
+                input_set = input_set(perm_indices, :, :);
+                label_set = label_set(perm_indices, :, :);
                 
                 for j = 1:ceil(num_examples / batch_size)
                     b_start = ((j - 1) * batch_size) + 1;
                     b_end = b_start + batch_size - 1;
-                    [dweights, dbiases] = trainBatch(this, input_set(b_start:b_end, :, :), label_set(b_start:b_end, :, :), num_steps);
+                    [dweights, dbiases] = this.trainBatch(input_set(b_start:b_end, :, :), label_set(b_start:b_end, :, :), num_steps);
                     
                     this.weights.w_IH = this.weights.w_IH - this.l_rate * dweights.w_IH;
                     this.weights.w_HO = this.weights.w_HO - this.l_rate * dweights.w_HO;
@@ -95,14 +95,14 @@ classdef RNNmodel < handle
                     this.biases.b_O = this.biases.b_O - this.l_rate * dbiases.b_O;
                     this.biases.b_C = this.biases.b_C - this.l_rate * dbiases.b_C; 
                 end
+                disp(i);
+                disp(this.costSet(input_set, num_steps, label_set));
             end
         end
         
         % train a batch of inputs 
         function [dweights, dbiases] = trainBatch(this, input_set, label_set, num_steps)
             batch_size = size(input_set, 1);
-            
-            sigm_p_handle = @sigmoid_prime;
             
             b_O_deltas = zeros(this.Noutput, 1, batch_size);
             b_H_deltas = zeros(this.Nhidden, 1, batch_size);
@@ -123,31 +123,31 @@ classdef RNNmodel < handle
                 % calculate deltas
                 
                 % final layer stuff, using the output
-                err = error(final_out, label_set(i, :, end));
-                dO = err .* arrayfun(sigmoid_p_handle, z_out(:, :, end));
+                err = this.error(final_out, permute(label_set(i, :, end), [2 1 3]));
+                dO = err .* this.sigmoid_prime(z_out(:, :, end));
                 b_O_deltas(:, :, i) = dO;
-                w_HO_deltas(:, :, i) = dO * transpose(a_hid(:, :, end));
-                w_CO_deltas(:, :, i) = dO * transpose(a_hid(:, :, end));
+                w_HO_deltas(:, :, i) = dO * permute(a_hid(:, :, end), [2 1 3]);
+                w_CO_deltas(:, :, i) = dO * permute(a_con(:, :, end), [2 1 3]);
                 
-                dH = (transpose(w.w_HO) * dO) .* arrayfun(sigmoid_p_handle, z_hid(:, :, end));
+                dH = (transpose(w.w_HO) * dO) .* this.sigmoid_prime(z_hid(:, :, end));
                 b_H_deltas(:, :, i) = dH;
-                w_IH_deltas(:, :, i) = dH * transpose(input_set(i, :, end));
-                w_CH_deltas(:, :, i) = dH * transpose(a_con(:, :, end - 1));
+                w_IH_deltas(:, :, i) = dH * input_set(i, :, end);
+                w_CH_deltas(:, :, i) = dH * permute(a_con(:, :, end - 1), [2 1 3]);
                 
-                dC = (transpose(w.w_CO) * dO) .* arrayfun(sigmoid_p_handle, z_con(:, :, end));
+                dC = (transpose(w.w_CO) * dO) .* this.sigmoid_prime(z_con(:, :, end));
                 b_C_deltas(:, :, i) = dC;
-                w_HC_deltas(:, :, i) = dC * transpose(a_hid(:, :, end - 1));
+                w_HC_deltas(:, :, i) = dC * permute(a_hid(:, :, end - 1), [2 1 3]);
                 
                 % the rest of the calculations don't need the final layer
                 % stuff, so we can automate
                 for j = (num_steps):-1:2
-                    dHcurr = (transpose(w.w_HC) * dC) .* arrayfun(sigmoid_p_handle, z_hid(:, :, j));
-                    dCcurr = (transpose(w.w_CH) * dH) .* arrayfun(sigmoid_p_handle, z_con(:, :, j));
+                    dHcurr = (transpose(w.w_HC) * dC) .* this.sigmoid_prime(z_hid(:, :, j));
+                    dCcurr = (transpose(w.w_CH) * dH) .* this.sigmoid_prime(z_con(:, :, j));
                     b_H_deltas(:, :, i) = b_H_deltas(:, :, i) + dHcurr;
                     b_C_deltas(:, :, i) = b_C_deltas(:, :, i) + dCcurr;
-                    w_IH_deltas(:, :, i) = w_IH_deltas(:, :, i) + (dHcurr * transpose(input_set(i, :, j)));
-                    w_CH_deltas(:, :, i) = w_CH_deltas(:, :, i) + (dHcurr * transpose(a_con(:, :, j - 1)));
-                    w_HC_deltas(:, :, i) = w_HC_deltas(:, :, i) + (dCcurr * transpose(a_hid(:, :, j - 1)));
+                    w_IH_deltas(:, :, i) = w_IH_deltas(:, :, i) + (dHcurr * input_set(i, :, j));
+                    w_CH_deltas(:, :, i) = w_CH_deltas(:, :, i) + (dHcurr * permute(a_con(:, :, j - 1), [2 1 3]));
+                    w_HC_deltas(:, :, i) = w_HC_deltas(:, :, i) + (dCcurr * permute(a_hid(:, :, j - 1), [2 1 3]));
                 end
                 
                 b_H_deltas(:, :, i) = b_H_deltas(:, :, i) / num_steps;
@@ -170,6 +170,7 @@ classdef RNNmodel < handle
         
         % feed an input through the layers
         function [a_hid, a_con, a_out, z_hid, z_con, z_out] = runSample(this, input, num_steps)
+            input = permute(input, [2 1 3]);
             % activations for the h, c, o layers
             a_hid = zeros(this.Nhidden, 1, num_steps + 1); 
             a_con = zeros(this.Ncontrol, 1, num_steps + 1);
@@ -179,18 +180,17 @@ classdef RNNmodel < handle
             z_con = zeros(this.Ncontrol, 1, num_steps + 1);
             z_out = zeros(this.Noutput, 1, num_steps + 1);
             
-            sigm_handle = @sigmoid;
             w = this.weights;
             b = this.biases;
             
             for i = 1:num_steps
-                z_hid(:, :, i + 1) = w.w_IH * input(:, :, i) + w.w_CH * a_con(:, :, i) - b.b_H;
+                z_hid(:, :, i + 1) = (w.w_IH * input(:, :, i)) + (w.w_CH * a_con(:, :, i)) - b.b_H;
                 z_con(:, :, i + 1) = w.w_HC * a_hid(:, :, i) - b.b_C;
                 z_out(:, :, i + 1) = w.w_HO * a_hid(:, :, i + 1) + w.w_CO * a_con(:, :, i + 1) - b.b_O;
                 
-                a_hid(:, :, i + 1) = arrayfun(sigm_handle, z_hid(:, :, i + 1));
-                a_con(:, :, i + 1) = arrayfun(sigm_handle, z_con(:, :, i + 1));
-                a_out(:, :, i + 1) = arrayfun(sigm_handle, z_out(:, :, i + 1));
+                a_hid(:, :, i + 1) = this.sigmoid(z_hid(:, :, i + 1));
+                a_con(:, :, i + 1) = this.sigmoid(z_con(:, :, i + 1));
+                a_out(:, :, i + 1) = this.sigmoid(z_out(:, :, i + 1));
             end
         end
         
@@ -199,20 +199,36 @@ classdef RNNmodel < handle
             out = a_out(:, :, end);
         end
         
+        function [cost] = costSample(this, input, num_steps, label)
+            [a_hid, a_con, a_out, z_hid, z_con, z_out] = runSample(this, input, num_steps);
+            diff = a_out(:, :, end) - transpose(label);
+            cost = sum(diff .* diff);
+        end
+        
+        function [cost] = costSet(this, input_sets, num_steps, labels)
+            cost = 0;
+            for i = 1:size(input_sets, 1)
+                cost = cost + this.costSample(input_sets(i, :, :), num_steps, labels(i, :, end));
+            end
+        end
+        
         % compute the sigmoid of an input
-        function k = sigmoid(z)
-            k = 1/(1 + exp(-z));    
+        function [k] = sigmoid(this, z)
+            k = zeros(size(z, 1), 1);
+            for i = 1:size(z, 1)
+                k(i, 1) = 1/(1 + exp(-z(i, 1)));
+            end 
         end
         
         % compute the derivative sigmoid of an input
-        function k = sigmoid_prime(z)
-            k = (1 - sigmoid(z)) * sigmoid(z); 
+        function [k] = sigmoid_prime(this, z)
+            k = (1 - this.sigmoid(z)) .* this.sigmoid(z); 
         end
         
         % computes the derivative of the error function on the output set,
         % given the correct labels
-        function [varargout] = error(output, labels)
-            varargout = output - labels;
+        function [k] = error(this, output, labels)
+            k = output - labels;
         end
         
     end
