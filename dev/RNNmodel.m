@@ -56,16 +56,16 @@ classdef RNNmodel < handle
             this.weights.w_CH = (-1 + 2.*rand(this.Nhidden,this.Ncontrol)) * init_scale;
             this.weights.w_CO = (-1 + 2.*rand(this.Noutput,this.Ncontrol)) * init_scale;
             
-            this.biases.b_H = (-1 + 2.*rand(this.Nhidden, 1)) * init_scale;
-            this.biases.b_O = (-1 + 2.*rand(this.Noutput, 1)) * init_scale;
-            this.biases.b_C = (-1 + 2.*rand(this.Ncontrol, 1)) * init_scale;
+            this.biases.b_H = -3 * ones(this.Nhidden, 1); % (-1 + 2.*rand(this.Nhidden, 1)) * init_scale;
+            this.biases.b_O = -3 * ones(this.Noutput, 1); % (-1 + 2.*rand(this.Noutput, 1)) * init_scale;
+            this.biases.b_C = -3 * ones(this.Ncontrol, 1); % (-1 + 2.*rand(this.Ncontrol, 1)) * init_scale;
         end
         
         % train the network using the given input and label set
         % time step is the third dimension of the data sets.
         % num_steps is the number of time steps that the network is
         % simulating.
-        function [] = trainOnline(this, input_set, label_set, num_steps, batch_size, num_iterations)
+        function [mse_log] = trainOnline(this, input_set, label_set, num_steps, batch_size, num_iterations)
             assert(size(input_set, 3) == size(label_set, 3)); % they better have values for each time step
             assert(size(input_set, 1) == size(label_set, 1)); % they better have the same amount of examples
             assert(num_steps >= 0);
@@ -73,13 +73,14 @@ classdef RNNmodel < handle
             assert(batch_size >= 1);
             
             num_examples = size(input_set, 1);
-            
+            mse_log = zeros(1, num_iterations);
             for i = 1:num_iterations
                 % randomly permute the sets before training
-                perm_indices = randperm(num_examples);
-                input_set = input_set(perm_indices, :, :);
-                label_set = label_set(perm_indices, :, :);
+%                 perm_indices = randperm(num_examples);
+%                 input_set = input_set(perm_indices, :, :);
+%                 label_set = label_set(perm_indices, :, :);
                 
+                % for each batch...
                 for j = 1:ceil(num_examples / batch_size)
                     b_start = ((j - 1) * batch_size) + 1;
                     b_end = b_start + batch_size - 1;
@@ -89,14 +90,14 @@ classdef RNNmodel < handle
                     this.weights.w_HO = this.weights.w_HO - this.l_rate * dweights.w_HO;
                     this.weights.w_HC = this.weights.w_HC - this.l_rate * dweights.w_HC;
                     this.weights.w_CH = this.weights.w_CH - this.l_rate * dweights.w_CH;
-                    this.weights.w_CO = this.weights.w_CO - this.l_rate * dweights.w_CO;
+                    %this.weights.w_CO = this.weights.w_CO - this.l_rate * dweights.w_CO;
                     
-                    this.biases.b_H = this.biases.b_H - this.l_rate * dbiases.b_H;
-                    this.biases.b_O = this.biases.b_O - this.l_rate * dbiases.b_O;
-                    this.biases.b_C = this.biases.b_C - this.l_rate * dbiases.b_C; 
+%                     this.biases.b_H = this.biases.b_H - this.l_rate * dbiases.b_H;
+%                     this.biases.b_O = this.biases.b_O - this.l_rate * dbiases.b_O;
+%                     this.biases.b_C = this.biases.b_C - this.l_rate * dbiases.b_C; 
                 end
-                disp(i);
-                disp(this.costSet(input_set, num_steps, label_set));
+                disp([num2str(i) ' ' num2str(this.costSet(input_set, num_steps, label_set))]);
+                mse_log(1, i) = this.costSet(input_set, num_steps, label_set);
             end
         end
         
@@ -115,6 +116,8 @@ classdef RNNmodel < handle
             w_CO_deltas = zeros(this.Noutput, this.Ncontrol, batch_size);
             
             w = this.weights;
+            
+            % for every example...
             for i = 1:batch_size
                 % feed forward
                 [a_hid, a_con, a_out, z_hid, z_con, z_out] = runSample(this, input_set(i, :, :), num_steps);
@@ -125,10 +128,11 @@ classdef RNNmodel < handle
                 % final layer stuff, using the output
                 err = this.error(final_out, permute(label_set(i, :, end), [2 1 3]));
                 dO = err .* this.sigmoid_prime(z_out(:, :, end));
+                
                 b_O_deltas(:, :, i) = dO;
                 w_HO_deltas(:, :, i) = dO * permute(a_hid(:, :, end), [2 1 3]);
                 w_CO_deltas(:, :, i) = dO * permute(a_con(:, :, end), [2 1 3]);
-                
+                %disp(w_HO_deltas);
                 dH = (transpose(w.w_HO) * dO) .* this.sigmoid_prime(z_hid(:, :, end));
                 b_H_deltas(:, :, i) = dH;
                 w_IH_deltas(:, :, i) = dH * input_set(i, :, end);
@@ -143,11 +147,16 @@ classdef RNNmodel < handle
                 for j = (num_steps):-1:2
                     dHcurr = (transpose(w.w_HC) * dC) .* this.sigmoid_prime(z_hid(:, :, j));
                     dCcurr = (transpose(w.w_CH) * dH) .* this.sigmoid_prime(z_con(:, :, j));
+                    
                     b_H_deltas(:, :, i) = b_H_deltas(:, :, i) + dHcurr;
                     b_C_deltas(:, :, i) = b_C_deltas(:, :, i) + dCcurr;
+                    
                     w_IH_deltas(:, :, i) = w_IH_deltas(:, :, i) + (dHcurr * input_set(i, :, j));
                     w_CH_deltas(:, :, i) = w_CH_deltas(:, :, i) + (dHcurr * permute(a_con(:, :, j - 1), [2 1 3]));
                     w_HC_deltas(:, :, i) = w_HC_deltas(:, :, i) + (dCcurr * permute(a_hid(:, :, j - 1), [2 1 3]));
+                    
+                    dH = dHcurr;
+                    dC = dCcurr;
                 end
                 
                 b_H_deltas(:, :, i) = b_H_deltas(:, :, i) / num_steps;
@@ -169,8 +178,8 @@ classdef RNNmodel < handle
         end
         
         % feed an input through the layers
-        function [a_hid, a_con, a_out, z_hid, z_con, z_out] = runSample(this, input, num_steps)
-            input = permute(input, [2 1 3]);
+        function [a_hid, a_con, a_out, z_hid, z_con, z_out] = runSample(this, input_ex, num_steps)
+            input = permute(input_ex, [2 1 3]);
             % activations for the h, c, o layers
             a_hid = zeros(this.Nhidden, 1, num_steps + 1); 
             a_con = zeros(this.Ncontrol, 1, num_steps + 1);
@@ -184,12 +193,15 @@ classdef RNNmodel < handle
             b = this.biases;
             
             for i = 1:num_steps
-                z_hid(:, :, i + 1) = (w.w_IH * input(:, :, i)) + (w.w_CH * a_con(:, :, i)) - b.b_H;
-                z_con(:, :, i + 1) = w.w_HC * a_hid(:, :, i) - b.b_C;
-                z_out(:, :, i + 1) = w.w_HO * a_hid(:, :, i + 1) + w.w_CO * a_con(:, :, i + 1) - b.b_O;
-                
+                % input doesn't have virtual first layer, so input(i)
+                % corresponds to z(i + 1)
+                z_hid(:, :, i + 1) = (w.w_IH * input(:, :, i)) + (w.w_CH * a_con(:, :, i)) + b.b_H;
                 a_hid(:, :, i + 1) = this.sigmoid(z_hid(:, :, i + 1));
+                
+                z_con(:, :, i + 1) = w.w_HC * a_hid(:, :, i) + b.b_C;
                 a_con(:, :, i + 1) = this.sigmoid(z_con(:, :, i + 1));
+                
+                z_out(:, :, i + 1) = w.w_HO * a_hid(:, :, i + 1) + w.w_CO * a_con(:, :, i + 1) + b.b_O;
                 a_out(:, :, i + 1) = this.sigmoid(z_out(:, :, i + 1));
             end
         end
@@ -197,6 +209,14 @@ classdef RNNmodel < handle
         function [out] = predictSample(this, input, num_steps)
             [a_hid, a_con, a_out, z_hid, z_con, z_out] = runSample(this, input, num_steps);
             out = a_out(:, :, end);
+        end
+        
+        function [outs] = predictSet(this, input_set, num_steps)
+            outs = zeros(size(input_set, 1), this.Noutput);
+            for i = 1:size(input_set, 1)
+                [a_hid, a_con, a_out, z_hid, z_con, z_out] = runSample(this, input_set(i, :, :), num_steps);
+                outs(i, :) = a_out(:, :, end);
+            end
         end
         
         function [cost] = costSample(this, input, num_steps, label)
@@ -210,14 +230,18 @@ classdef RNNmodel < handle
             for i = 1:size(input_sets, 1)
                 cost = cost + this.costSample(input_sets(i, :, :), num_steps, labels(i, :, end));
             end
+            
+            cost = cost / size(input_sets, 1);
+            cost = cost / this.Noutput;
         end
         
         % compute the sigmoid of an input
         function [k] = sigmoid(this, z)
-            k = zeros(size(z, 1), 1);
-            for i = 1:size(z, 1)
-                k(i, 1) = 1/(1 + exp(-z(i, 1)));
-            end 
+            %k = zeros(size(z, 1), 1);
+            k = 1 ./ (1+exp(-z));
+%             for i = 1:size(z, 1)
+%                 k(i, 1) = 1/(1 + exp(-z(i, 1)));
+%             end 
         end
         
         % compute the derivative sigmoid of an input
