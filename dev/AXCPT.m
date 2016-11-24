@@ -37,6 +37,7 @@ end
 % train the network
 net.trainOnline(inputs, labels, Ntimes, batch_size, num_iterations);
 
+%{
 % create test data
 test_inputs = zeros(num_examples, Ninput, Ntimes);
 test_labels = zeros(num_examples, Noutput, Ntimes);
@@ -56,4 +57,5 @@ for i = 1:test_size
     end
 end
 
-predictions = net.runSet(test_inputs, Ntimes)
+predictions = net.runSet(test_inputs, Ntimes);
+%}

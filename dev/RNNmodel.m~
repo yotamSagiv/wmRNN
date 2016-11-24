@@ -123,7 +123,7 @@ classdef RNNmodel < handle
                 % calculate deltas
                 
                 % final layer stuff, using the output
-                err = error(final_out, label_set(i, :, end));
+                err = error(final_out, label_set(i, :));
                 dO = err .* arrayfun(sigmoid_p_handle, z_out(:, :, end));
                 b_O_deltas(:, :, i) = dO;
                 w_HO_deltas(:, :, i) = dO * transpose(a_hid(:, :, end));
@@ -158,14 +158,16 @@ classdef RNNmodel < handle
             end
             
             dweights.w_IH = mean(w_IH_deltas, 3);
-            dweights.w_CH = mean(w_CH_deltas, 3);
-            dweights.w_HC = mean(w_HC_deltas, 3);
-            dweights.w_HO = mean(w_HO_deltas, 3);
-            dweights.w_CO = mean(w_CO_deltas, 3);
+            dweights.w_ = mean(w_IH_deltas, 3);
+            dweights.w_IH = mean(w_IH_deltas, 3);
+            dweights.w_IH = mean(w_IH_deltas, 3);
+            dweights.w_IH = mean(w_IH_deltas, 3);
             
-            dbiases.b_H = mean(b_H_deltas, 3);
-            dbiases.b_C = mean(b_C_deltas, 3);
-            dbiases.b_O = mean(b_O_deltas, 3);
+            dbiases.b_H = zeros(this.Nhidden, 1);
+            dbiases.b_C = zeros(this.Ncontrol, 1);
+            dbiases.b_O = zeros(this.Noutput, 1);
+
+
         end
         
         % feed an input through the layers
@@ -196,7 +198,7 @@ classdef RNNmodel < handle
         
         function [out] = predictSample(this, input, num_steps)
             [a_hid, a_con, a_out, z_hid, z_con, z_out] = runSample(this, input, num_steps);
-            out = a_out(:, :, end);
+            return a_out(:, :, end);
         end
         
         % compute the sigmoid of an input
