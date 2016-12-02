@@ -65,7 +65,7 @@ classdef RNNmodel < handle
         % time step is the third dimension of the data sets.
         % num_steps is the number of time steps that the network is
         % simulating.
-        function [mse_log] = trainOnline(this, input_set, label_set, num_steps, batch_size, num_iterations)
+        function [mse_log] = trainOnline(this, input_set, label_set, num_steps, batch_size, num_iterations, include_intermediates)
             assert(size(input_set, 3) == size(label_set, 3)); % they better have values for each time step
             assert(size(input_set, 1) == size(label_set, 1)); % they better have the same amount of examples
             assert(num_steps >= 0);
@@ -76,33 +76,34 @@ classdef RNNmodel < handle
             mse_log = zeros(1, num_iterations);
             for i = 1:num_iterations
                 % randomly permute the sets before training
-%                 perm_indices = randperm(num_examples);
-%                 input_set = input_set(perm_indices, :, :);
-%                 label_set = label_set(perm_indices, :, :);
+                 perm_indices = randperm(num_examples);
+                 input_set = input_set(perm_indices, :, :);
+                 label_set = label_set(perm_indices, :, :);
                 
                 % for each batch...
                 for j = 1:ceil(num_examples / batch_size)
                     b_start = ((j - 1) * batch_size) + 1;
                     b_end = b_start + batch_size - 1;
-                    [dweights, dbiases] = this.trainBatch(input_set(b_start:b_end, :, :), label_set(b_start:b_end, :, :), num_steps);
-                    
-                    this.weights.w_IH = this.weights.w_IH - this.l_rate * dweights.w_IH;
-                    this.weights.w_HO = this.weights.w_HO - this.l_rate * dweights.w_HO;
-                    this.weights.w_HC = this.weights.w_HC - this.l_rate * dweights.w_HC;
-                    this.weights.w_CH = this.weights.w_CH - this.l_rate * dweights.w_CH;
-                    %this.weights.w_CO = this.weights.w_CO - this.l_rate * dweights.w_CO;
-                    
-%                     this.biases.b_H = this.biases.b_H - this.l_rate * dbiases.b_H;
-%                     this.biases.b_O = this.biases.b_O - this.l_rate * dbiases.b_O;
-%                     this.biases.b_C = this.biases.b_C - this.l_rate * dbiases.b_C; 
+                    [dweights, dbiases] = this.trainBatch(input_set(b_start:b_end, :, :), label_set(b_start:b_end, :, :), num_steps, include_intermediates);
+
+                    this.weights.w_IH = this.weights.w_IH - (this.l_rate * dweights.w_IH);
+                    this.weights.w_HO = this.weights.w_HO - (this.l_rate * dweights.w_HO);
+                    this.weights.w_HC = this.weights.w_HC - (this.l_rate * dweights.w_HC);                   
+                    this.weights.w_CH = this.weights.w_CH - (this.l_rate * dweights.w_CH);                   
+                    this.weights.w_CO = this.weights.w_CO - (this.l_rate * dweights.w_CO);
+                   
+                    this.biases.b_H = this.biases.b_H - (this.l_rate * dbiases.b_H);
+                    this.biases.b_O = this.biases.b_O - (this.l_rate * dbiases.b_O);
+                    this.biases.b_C = this.biases.b_C - (this.l_rate * dbiases.b_C); 
                 end
-                disp([num2str(i) ' ' num2str(this.costSet(input_set, num_steps, label_set))]);
-                mse_log(1, i) = this.costSet(input_set, num_steps, label_set);
+                set_cost = this.costSet(input_set, num_steps, label_set);
+                disp([num2str(i) ' ' num2str(set_cost)]);
+                mse_log(1, i) = set_cost;
             end
         end
         
         % train a batch of inputs 
-        function [dweights, dbiases] = trainBatch(this, input_set, label_set, num_steps)
+        function [dweights, dbiases] = trainBatch(this, input_set, label_set, num_steps, include_intermediates)
             batch_size = size(input_set, 1);
             
             b_O_deltas = zeros(this.Noutput, 1, batch_size);
@@ -132,7 +133,7 @@ classdef RNNmodel < handle
                 b_O_deltas(:, :, i) = dO;
                 w_HO_deltas(:, :, i) = dO * permute(a_hid(:, :, end), [2 1 3]);
                 w_CO_deltas(:, :, i) = dO * permute(a_con(:, :, end), [2 1 3]);
-                %disp(w_HO_deltas);
+                
                 dH = (transpose(w.w_HO) * dO) .* this.sigmoid_prime(z_hid(:, :, end));
                 b_H_deltas(:, :, i) = dH;
                 w_IH_deltas(:, :, i) = dH * input_set(i, :, end);
@@ -145,8 +146,23 @@ classdef RNNmodel < handle
                 % the rest of the calculations don't need the final layer
                 % stuff, so we can automate
                 for j = (num_steps):-1:2
+                    dOcurr = 0;
+                    if include_intermediates == 1
+                        layer_err = this.error(a_out(:, :, j), permute(label_set(i, :, j), [2 1 3]));
+                        dOcurr = layer_err .* this.sigmoid_prime(z_out(:, :, j));
+
+                        b_O_deltas(:, :, i) = b_O_deltas(:, :, i) + dOcurr;
+                        w_HO_deltas(:, :, i) = w_HO_deltas(:, :, i) + (dOcurr * permute(a_hid(:, :, j), [2 1 3]));
+                        w_CO_deltas(:, :, i) = w_CO_deltas(:, :, i) + (dOcurr * permute(a_con(:, :, j), [2 1 3]));
+                    end
+                    
                     dHcurr = (transpose(w.w_HC) * dC) .* this.sigmoid_prime(z_hid(:, :, j));
                     dCcurr = (transpose(w.w_CH) * dH) .* this.sigmoid_prime(z_con(:, :, j));
+                    
+                    if include_intermediates == 1
+                        dHcurr = dHcurr + (transpose(w.w_HO) * dOcurr) .* this.sigmoid_prime(z_hid(:, :, j));
+                        dCcurr = dCcurr + (transpose(w.w_CO) * dOcurr) .* this.sigmoid_prime(z_con(:, :, j));
+                    end
                     
                     b_H_deltas(:, :, i) = b_H_deltas(:, :, i) + dHcurr;
                     b_C_deltas(:, :, i) = b_C_deltas(:, :, i) + dCcurr;
@@ -164,6 +180,11 @@ classdef RNNmodel < handle
                 w_IH_deltas(:, :, i) = w_IH_deltas(:, :, i) / num_steps;
                 w_CH_deltas(:, :, i) = w_CH_deltas(:, :, i) / num_steps;
                 w_HC_deltas(:, :, i) = w_HC_deltas(:, :, i) / num_steps;
+                if include_intermediates == 1
+                    w_CO_deltas(:, :, i) = w_CO_deltas(:, :, i) / num_steps;
+                    w_HO_deltas(:, :, i) = w_HO_deltas(:, :, i) / num_steps;
+                    b_O_deltas(:, :, i) = b_O_deltas(:, :, i) / num_steps;
+                end
             end
             
             dweights.w_IH = mean(w_IH_deltas, 3);
@@ -212,10 +233,28 @@ classdef RNNmodel < handle
         end
         
         function [outs] = predictSet(this, input_set, num_steps)
-            outs = zeros(size(input_set, 1), this.Noutput);
+            outs = zeros(size(input_set, 1), this.Noutput, num_steps + 1);
             for i = 1:size(input_set, 1)
                 [a_hid, a_con, a_out, z_hid, z_con, z_out] = runSample(this, input_set(i, :, :), num_steps);
-                outs(i, :) = a_out(:, :, end);
+                outs(i, :, :) = a_out(:, :, :);
+            end
+        end
+        
+        function [a_hids, a_cons, a_outs, z_hids, z_cons, z_outs] = netValsSet(this, input_set, num_steps)
+            a_outs = zeros(size(input_set, 1), this.Noutput, num_steps + 1);
+            a_hids = zeros(size(input_set, 1), this.Nhidden, num_steps + 1);
+            a_cons = zeros(size(input_set, 1), this.Ncontrol, num_steps + 1);
+            z_outs = zeros(size(input_set, 1), this.Noutput, num_steps + 1);
+            z_hids = zeros(size(input_set, 1), this.Nhidden, num_steps + 1);
+            z_cons = zeros(size(input_set, 1), this.Ncontrol, num_steps + 1);
+            for i = 1:size(input_set, 1)
+                [a_hid, a_con, a_out, z_hid, z_con, z_out] = runSample(this, input_set(i, :, :), num_steps);
+                a_outs(i, :, :) = a_out(:, :, :);
+                a_hids(i, :, :) = a_hid(:, :, :);
+                a_cons(i, :, :) = a_con(:, :, :);
+                z_outs(i, :, :) = z_out(:, :, :);
+                z_hids(i, :, :) = z_hid(:, :, :);
+                z_cons(i, :, :) = z_con(:, :, :);
             end
         end
         
