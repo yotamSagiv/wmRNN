@@ -315,10 +315,10 @@ Ninput = 4; % alphabet size
 Nhidden = 50; 
 Ncontrol = 50; % really, 1 should be sufficient
 Noutput = 2;
-Ntimes = 2;
+Ntimes = 3;
 
 init_scale = 0.5;
-num_iterations = 15000;
+num_iterations = 25000;
 batch_size = 4;
 num_examples = 4;
 learning_rate = 0.5;
@@ -329,23 +329,23 @@ inputs = zeros(num_examples, Ninput, Ntimes);
 labels = zeros(num_examples, Noutput, Ntimes);
 % AX
 inputs(1, 1, 1) = 1;
-inputs(1, 3, 2) = 1;
-labels(1, 1, 2) = 1;
+inputs(1, 3, 3) = 1;
+labels(1, 1, 3) = 1;
 
 % BX
 inputs(2, 2, 1) = 1;
-inputs(2, 3, 2) = 1;
-labels(2, 2, 2) = 1;
+inputs(2, 3, 3) = 1;
+labels(2, 2, 3) = 1;
 
 % AY
 inputs(3, 1, 1) = 1;
-inputs(3, 4, 2) = 1;
-labels(3, 1, 2) = 1;
+inputs(3, 4, 3) = 1;
+labels(3, 2, 3) = 1;
 
 % BY
 inputs(4, 2, 1) = 1;
-inputs(4, 4, 2) = 1;
-labels(4, 2, 2) = 1;
+inputs(4, 4, 3) = 1;
+labels(4, 1, 3) = 1;
 %}
 mse_log = net.trainOnline(inputs, labels, Ntimes, batch_size, num_iterations, 1);
 %%
@@ -357,8 +357,8 @@ figure(1);
 subplot(1, 2, 1);
 imagesc(outs(:, :, end));
 colorbar;
-%caxis([0 1]);
+caxis([0 1]);
 subplot(1, 2, 2);
-imagesc(labels(:, :, 2));
+imagesc(labels(:, :, end));
 colorbar;
-%caxis([0 1]);
+caxis([0 1]);

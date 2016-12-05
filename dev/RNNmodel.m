@@ -56,9 +56,9 @@ classdef RNNmodel < handle
             this.weights.w_CH = (-1 + 2.*rand(this.Nhidden,this.Ncontrol)) * init_scale;
             this.weights.w_CO = (-1 + 2.*rand(this.Noutput,this.Ncontrol)) * init_scale;
             
-            this.biases.b_H = -3 * ones(this.Nhidden, 1); % (-1 + 2.*rand(this.Nhidden, 1)) * init_scale;
-            this.biases.b_O = -3 * ones(this.Noutput, 1); % (-1 + 2.*rand(this.Noutput, 1)) * init_scale;
-            this.biases.b_C = -3 * ones(this.Ncontrol, 1); % (-1 + 2.*rand(this.Ncontrol, 1)) * init_scale;
+            this.biases.b_H = -2 * ones(this.Nhidden, 1); % (-1 + 2.*rand(this.Nhidden, 1)) * init_scale;
+            this.biases.b_O = -2 * ones(this.Noutput, 1); % (-1 + 2.*rand(this.Noutput, 1)) * init_scale;
+            this.biases.b_C = -2 * ones(this.Ncontrol, 1); % (-1 + 2.*rand(this.Ncontrol, 1)) * init_scale;
         end
         
         % train the network using the given input and label set
@@ -214,13 +214,13 @@ classdef RNNmodel < handle
             b = this.biases;
             
             for i = 1:num_steps
+                z_con(:, :, i + 1) = w.w_HC * a_hid(:, :, i) + b.b_C;
+                a_con(:, :, i + 1) = this.sigmoid(z_con(:, :, i + 1));
+                
                 % input doesn't have virtual first layer, so input(i)
                 % corresponds to z(i + 1)
                 z_hid(:, :, i + 1) = (w.w_IH * input(:, :, i)) + (w.w_CH * a_con(:, :, i)) + b.b_H;
                 a_hid(:, :, i + 1) = this.sigmoid(z_hid(:, :, i + 1));
-                
-                z_con(:, :, i + 1) = w.w_HC * a_hid(:, :, i) + b.b_C;
-                a_con(:, :, i + 1) = this.sigmoid(z_con(:, :, i + 1));
                 
                 z_out(:, :, i + 1) = w.w_HO * a_hid(:, :, i + 1) + w.w_CO * a_con(:, :, i + 1) + b.b_O;
                 a_out(:, :, i + 1) = this.sigmoid(z_out(:, :, i + 1));
@@ -236,11 +236,11 @@ classdef RNNmodel < handle
             outs = zeros(size(input_set, 1), this.Noutput, num_steps + 1);
             for i = 1:size(input_set, 1)
                 [a_hid, a_con, a_out, z_hid, z_con, z_out] = runSample(this, input_set(i, :, :), num_steps);
-                outs(i, :, :) = a_out(:, :, :);
+                outs(i, :, :) = permute(a_out(:, :, :), [2 1 3]);
             end
         end
         
-        function [a_hids, a_cons, a_outs, z_hids, z_cons, z_outs] = netValsSet(this, input_set, num_steps)
+        function [a_hids, a_cons, a_outs, z_hids, z_cons, z_outs] = predictSetVerbose(this, input_set, num_steps)
             a_outs = zeros(size(input_set, 1), this.Noutput, num_steps + 1);
             a_hids = zeros(size(input_set, 1), this.Nhidden, num_steps + 1);
             a_cons = zeros(size(input_set, 1), this.Ncontrol, num_steps + 1);
@@ -249,12 +249,12 @@ classdef RNNmodel < handle
             z_cons = zeros(size(input_set, 1), this.Ncontrol, num_steps + 1);
             for i = 1:size(input_set, 1)
                 [a_hid, a_con, a_out, z_hid, z_con, z_out] = runSample(this, input_set(i, :, :), num_steps);
-                a_outs(i, :, :) = a_out(:, :, :);
-                a_hids(i, :, :) = a_hid(:, :, :);
-                a_cons(i, :, :) = a_con(:, :, :);
-                z_outs(i, :, :) = z_out(:, :, :);
-                z_hids(i, :, :) = z_hid(:, :, :);
-                z_cons(i, :, :) = z_con(:, :, :);
+                a_outs(i, :, :) = permute(a_out(:, :, :), [2 1 3]);
+                a_hids(i, :, :) = permute(a_hid(:, :, :), [2 1 3]);
+                a_cons(i, :, :) = permute(a_con(:, :, :), [2 1 3]);
+                z_outs(i, :, :) = permute(z_out(:, :, :), [2 1 3]);
+                z_hids(i, :, :) = permute(z_hid(:, :, :), [2 1 3]);
+                z_cons(i, :, :) = permute(z_con(:, :, :), [2 1 3]);
             end
         end
         
