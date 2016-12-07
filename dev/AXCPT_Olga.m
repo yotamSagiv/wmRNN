@@ -4,13 +4,13 @@ Ninput = 4; % alphabet size
 Nhidden = 50; 
 Ncontrol = 50; % really, 1 should be sufficient
 Noutput = 2;
-Ntimes = 3;
+Ntimes = 2;
 
 samples = 100;
 init_scale = 0.5;
-num_iterations = 60000;
+num_iterations = 20000;
 batch_size = samples/2;
-learning_rate = 0.1;
+learning_rate = 0.5;
 test_size = 1000;
 
 net = RNNmodel(Ninput, Nhidden, Noutput, Ncontrol, learning_rate, init_scale);
@@ -18,32 +18,32 @@ net = RNNmodel(Ninput, Nhidden, Noutput, Ncontrol, learning_rate, init_scale);
 inputs = zeros(samples, Ninput, Ntimes);
 labels = zeros(samples, Noutput, Ntimes);
 
-probabilities = [0.4 0.1 0.2 0.3];
+%probabilities = [0.4 0.1 0.2 0.3];
 %probabilities = [0.4 0.1 0.3 0.2];
-%probabilities = [0.25 0.25 0.25 0.25];
+probabilities = [0.25 0.25 0.25 0.25];
 cumProbabilities = cumsum(probabilities);
 
 for i = 1:samples
     random = rand;
     if(random < cumProbabilities(1))
         inputs(i, 1, 1) = 1;
-        inputs(i, 3, 3) = 1;
-        labels(i, 1, 3) = 1;
+        inputs(i, 3, 2) = 1;
+        labels(i, 1, 2) = 1;
     end
     if(random < cumProbabilities(2) && random > cumProbabilities(1))
         inputs(i, 1, 1) = 1;
-        inputs(i, 4, 3) = 1;
-        labels(i, 2, 3) = 1;
+        inputs(i, 4, 2) = 1;
+        labels(i, 2, 2) = 1;
     end
     if(random < cumProbabilities(3) && random > cumProbabilities(2))
         inputs(i, 2, 1) = 1;
-        inputs(i, 3, 3) = 1;
-        labels(i, 2, 3) = 1;
+        inputs(i, 3, 2) = 1;
+        labels(i, 2, 2) = 1;
     end
     if(random < cumProbabilities(4) && random > cumProbabilities(3))
         inputs(i, 2, 1) = 1;
-        inputs(i, 4, 3) = 1;
-        labels(i, 1, 3) = 1;
+        inputs(i, 4, 2) = 1;
+        labels(i, 1, 2) = 1;
     end
 
 end

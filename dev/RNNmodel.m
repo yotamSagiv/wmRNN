@@ -137,9 +137,10 @@ classdef RNNmodel < handle
                 dH = (transpose(w.w_HO) * dO) .* this.sigmoid_prime(z_hid(:, :, end));
                 b_H_deltas(:, :, i) = dH;
                 w_IH_deltas(:, :, i) = dH * input_set(i, :, end);
-                w_CH_deltas(:, :, i) = dH * permute(a_con(:, :, end - 1), [2 1 3]);
+                w_CH_deltas(:, :, i) = dH * permute(a_con(:, :, end), [2 1 3]);
                 
                 dC = (transpose(w.w_CO) * dO) .* this.sigmoid_prime(z_con(:, :, end));
+                dC = dC + (transpose(w.w_CH) * dH) .* this.sigmoid_prime(z_con(:, :, end));
                 b_C_deltas(:, :, i) = dC;
                 w_HC_deltas(:, :, i) = dC * permute(a_hid(:, :, end - 1), [2 1 3]);
                 
@@ -157,7 +158,7 @@ classdef RNNmodel < handle
                     end
                     
                     dHcurr = (transpose(w.w_HC) * dC) .* this.sigmoid_prime(z_hid(:, :, j));
-                    dCcurr = (transpose(w.w_CH) * dH) .* this.sigmoid_prime(z_con(:, :, j));
+                    dCcurr = (transpose(w.w_CH) * dHcurr) .* this.sigmoid_prime(z_con(:, :, j));
                     
                     if include_intermediates == 1
                         dHcurr = dHcurr + (transpose(w.w_HO) * dOcurr) .* this.sigmoid_prime(z_hid(:, :, j));
@@ -168,7 +169,7 @@ classdef RNNmodel < handle
                     b_C_deltas(:, :, i) = b_C_deltas(:, :, i) + dCcurr;
                     
                     w_IH_deltas(:, :, i) = w_IH_deltas(:, :, i) + (dHcurr * input_set(i, :, j));
-                    w_CH_deltas(:, :, i) = w_CH_deltas(:, :, i) + (dHcurr * permute(a_con(:, :, j - 1), [2 1 3]));
+                    w_CH_deltas(:, :, i) = w_CH_deltas(:, :, i) + (dHcurr * permute(a_con(:, :, j), [2 1 3]));
                     w_HC_deltas(:, :, i) = w_HC_deltas(:, :, i) + (dCcurr * permute(a_hid(:, :, j - 1), [2 1 3]));
                     
                     dH = dHcurr;
@@ -219,7 +220,7 @@ classdef RNNmodel < handle
                 
                 % input doesn't have virtual first layer, so input(i)
                 % corresponds to z(i + 1)
-                z_hid(:, :, i + 1) = (w.w_IH * input(:, :, i)) + (w.w_CH * a_con(:, :, i)) + b.b_H;
+                z_hid(:, :, i + 1) = (w.w_IH * input(:, :, i)) + (w.w_CH * a_con(:, :, i + 1)) + b.b_H;
                 a_hid(:, :, i + 1) = this.sigmoid(z_hid(:, :, i + 1));
                 
                 z_out(:, :, i + 1) = w.w_HO * a_hid(:, :, i + 1) + w.w_CO * a_con(:, :, i + 1) + b.b_O;
