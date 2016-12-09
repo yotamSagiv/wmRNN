@@ -65,7 +65,7 @@ classdef RNNmodel < handle
         % time step is the third dimension of the data sets.
         % num_steps is the number of time steps that the network is
         % simulating.
-        function [mse_log] = trainOnline(this, input_set, label_set, num_steps, batch_size, num_iterations, include_intermediates)
+        function [mse_log] = trainOnline(this, input_set, label_set, num_steps, batch_size, num_iterations, include_intermediates, suppress_output)
             assert(size(input_set, 3) == size(label_set, 3)); % they better have values for each time step
             assert(size(input_set, 1) == size(label_set, 1)); % they better have the same amount of examples
             assert(num_steps >= 0);
@@ -97,7 +97,9 @@ classdef RNNmodel < handle
                     this.biases.b_C = this.biases.b_C - (this.l_rate * dbiases.b_C); 
                 end
                 set_cost = this.costSet(input_set, num_steps, label_set);
-                disp([num2str(i) ' ' num2str(set_cost)]);
+                if suppress_output == 0
+                    disp([num2str(i) ' ' num2str(set_cost)]);
+                end
                 mse_log(1, i) = set_cost;
             end
         end

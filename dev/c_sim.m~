@@ -84,7 +84,7 @@ end
 
 %% train
 net = RNNmodel(Ninput, Nhidden, Noutput, Ncontrol, learning_rate, init_scale);
-mse_log = net.trainOnline(inputs, labels, Ntimes, batch_size, num_iterations, 1, 0);
+mse_log = net.trainOnline(inputs, labels, Ntimes, batch_size, num_iterations, 1);
 %%
 plot(mse_log);
 %% check performance on test data
@@ -153,25 +153,11 @@ for i = 1:test_set_size
 
     test_inputs(i, NWorkingMemoryItems + object_set(round(rand * (length(object_set) - 1)) + 1), 3) = 1;
     
+    
     % set the corresponding label
     test_labels(i, object_indices(find(test_inputs(i, (NWorkingMemoryItems + 1):end, 2))), 3) = 1;
 end
-%% train with tests
-net = RNNmodel(Ninput, Nhidden, Noutput, Ncontrol, learning_rate, init_scale);
-small_set_errors = zeros(1, num_iterations);
-mid_set_errors = zeros(1, num_iterations);
-big_set_errors = zeros(1, num_iterations);
-mse_log = zeros(1, num_iterations);
-for i = 1:num_iterations
-    disp(i);
-    mse_log(1, i) = net.trainOnline(inputs, labels, Ntimes, batch_size, 1, 1, 1);
-    small_set_error(1, i) = net.costSet(test_inputs(1:400, :, :), Ntimes, test_labels(1:400, :, :));
-    mid_set_error(1, i) = net.costSet(test_inputs(401:800, :, :), Ntimes, test_labels(401:800, :, :));
-    big_set_error(1, i) = net.costSet(test_inputs(801:1200, :, :), Ntimes, test_labels(801:1200, :, :));  
-end
-%%
-hold on;
-plot(small_set_error);
-plot(mid_set_error);
-plot(big_set_error);
-hold off;
+
+small_set_error = net.costSet(test_inputs(1:400, :, :), Ntimes, test_labels(1:400, :, :));
+mid_set_error = net.costSet(test_inputs(401:800, :, :), Ntimes, test_labels(401:800, :, :));
+big_set_error = net.costSet(test_inputs(800:1200, :, :), Ntimes, test_labels(401:800, :, :));
