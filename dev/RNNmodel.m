@@ -217,12 +217,12 @@ classdef RNNmodel < handle
             b = this.biases;
             
             for i = 1:num_steps
-                z_con(:, :, i + 1) = w.w_HC * a_hid(:, :, i) + b.b_C;
+                z_con(:, :, i + 1) = w.w_HC * a_hid(:, :, i) + b.b_C;% + normrnd(0, 0.1);
                 a_con(:, :, i + 1) = this.sigmoid(z_con(:, :, i + 1));
                 
                 % input doesn't have virtual first layer, so input(i)
                 % corresponds to z(i + 1)
-                z_hid(:, :, i + 1) = (w.w_IH * input(:, :, i)) + (w.w_CH * a_con(:, :, i + 1)) + b.b_H;
+                z_hid(:, :, i + 1) = (w.w_IH * input(:, :, i)) + (w.w_CH * a_con(:, :, i + 1)) + b.b_H;% + normrnd(0, 0.25);
                 a_hid(:, :, i + 1) = this.sigmoid(z_hid(:, :, i + 1));
                 
                 z_out(:, :, i + 1) = w.w_HO * a_hid(:, :, i + 1) + w.w_CO * a_con(:, :, i + 1) + b.b_O;
